@@ -1609,9 +1609,7 @@ function bindEvents() {
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && isPlaying) {
-      stopAll();
-    }
+    if (document.hidden) releaseAllKeys();
   });
 
   // Master EQ drawer
