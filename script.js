@@ -195,7 +195,7 @@ class Channel {
     this.type = cfg.type ?? 'sine';
     this.volume = cfg.volume ?? 0.5;
     this.pan = cfg.pan ?? 0;
-    this.isMuted = false;
+    this.isMuted = cfg.isMuted ?? false;
 
     // Additive synthesis: levels for partials 1..8
     this.harmonics = cfg.harmonics
@@ -206,7 +206,7 @@ class Channel {
 
     // Frequency sweep
     this.sweep = {
-      enabled: false,
+      enabled: cfg.sweep?.enabled ?? false,
       from: cfg.sweep?.from ?? this.frequency,
       to: cfg.sweep?.to ?? Math.min(this.frequency * 2, 2000),
       dur: cfg.sweep?.dur ?? 5,
@@ -231,9 +231,9 @@ class Channel {
 
     // Filter state
     this.filters = {
-      hp: { freq: 20, node: null },
-      lp: { freq: 20000, node: null },
-      mid: { freq: 1000, gain: 0, node: null }
+      hp: { freq: cfg.filters?.hp ?? 20, node: null },
+      lp: { freq: cfg.filters?.lp ?? 20000, node: null },
+      mid: { freq: cfg.filters?.midFreq ?? 1000, gain: cfg.filters?.midGain ?? 0, node: null }
     };
 
     this.oscillators = [];
@@ -241,6 +241,11 @@ class Channel {
     this.gainNode = null;
     this.panNode = null;
     this.element = this.createUI();
+    if (this.isMuted) {
+      this.ui.muteBtn.classList.add('muted');
+      this.ui.muteBtn.innerHTML = ICON_MUTED;
+      this.ui.muteBtn.title = 'Unmute';
+    }
     this.updateColor();
   }
 
@@ -316,7 +321,7 @@ class Channel {
       </button>
       <div class="eq-container hidden">
         <label class="check-row">
-          <input type="checkbox" class="sweep-enable" />
+          <input type="checkbox" class="sweep-enable" ${this.sweep.enabled ? 'checked' : ''} />
           <span>Enable sweep</span>
         </label>
         <div class="sweep-grid" style="margin-top:10px">
@@ -1002,7 +1007,143 @@ function applyPreset(preset) {
   stopAll();
   channels.slice().forEach(c => removeChannel(c.id));
   preset.channels.forEach(cfg => addChannel(cfg));
+  if (preset.master) applyMasterState(preset.master);
+  if (preset.reverb) applyReverbState(preset.reverb);
   if (wasPlaying) startAll();
+}
+
+function setSliderValue(id, valId, v, fmt) {
+  const el = document.getElementById(id);
+  el.value = v;
+  document.getElementById(valId).textContent = fmt(v);
+  paintRange(el);
+}
+
+function applyMasterState(m) {
+  if (typeof m.volume === 'number') {
+    setSliderValue('master-volume', 'master-volume-val', m.volume, fmtPct);
+    updateMasterVolume(m.volume);
+  }
+  if (typeof m.hp === 'number') {
+    masterFilters.hp.freq = m.hp;
+    setSliderValue('master-hp', 'm-hp-val', m.hp, fmtHz);
+  }
+  if (typeof m.lp === 'number') {
+    masterFilters.lp.freq = m.lp;
+    setSliderValue('master-lp', 'm-lp-val', m.lp, fmtHz);
+  }
+  if (typeof m.midFreq === 'number') {
+    masterFilters.mid.freq = m.midFreq;
+    setSliderValue('master-mid-freq', 'm-mid-freq-val', m.midFreq, fmtHz);
+  }
+  if (typeof m.midGain === 'number') {
+    masterFilters.mid.gain = m.midGain;
+    setSliderValue('master-mid-gain', 'm-mid-gain-val', m.midGain, fmtDb);
+  }
+  updateMasterFilters();
+}
+
+function applyReverbState(r) {
+  if (typeof r.mix === 'number') {
+    reverb.mix = r.mix;
+    setSliderValue('reverb-mix', 'rv-mix-val', r.mix, fmtPct);
+    if (wetGain) {
+      wetGain.gain.setTargetAtTime(r.mix, audioCtx.currentTime, 0.02);
+    }
+  }
+  if (typeof r.decay === 'number') {
+    reverb.decay = r.decay;
+    setSliderValue('reverb-decay', 'rv-decay-val', r.decay, v => `${v.toFixed(1)} s`);
+    if (convNode) convNode.buffer = makeImpulse(r.decay);
+  }
+}
+
+// ---------- User presets (localStorage) ----------
+
+const USER_PRESETS_KEY = 'freqgen.presets.v1';
+const userPresets = loadUserPresets();
+
+function loadUserPresets() {
+  try {
+    const list = JSON.parse(localStorage.getItem(USER_PRESETS_KEY) || '[]');
+    return Array.isArray(list) ? list.filter(p => p && Array.isArray(p.channels)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistUserPresets() {
+  try {
+    localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(userPresets));
+  } catch { }
+}
+
+function serializeState() {
+  return {
+    channels: channels.map(ch => ({
+      frequency: ch.frequency,
+      type: ch.type,
+      volume: ch.volume,
+      pan: ch.pan,
+      isMuted: ch.isMuted,
+      ...(ch.usingCustom ? { harmonics: ch.harmonics.slice() } : {}),
+      sweep: { ...ch.sweep },
+      swell: { ...ch.swell },
+      voices: { ...ch.voices },
+      filters: {
+        hp: ch.filters.hp.freq,
+        lp: ch.filters.lp.freq,
+        midFreq: ch.filters.mid.freq,
+        midGain: ch.filters.mid.gain,
+      },
+    })),
+    master: {
+      volume: parseFloat(masterVolumeSlider.value),
+      hp: masterFilters.hp.freq,
+      lp: masterFilters.lp.freq,
+      midFreq: masterFilters.mid.freq,
+      midGain: masterFilters.mid.gain,
+    },
+    reverb: { mix: reverb.mix, decay: reverb.decay },
+  };
+}
+
+function renderPresetChips() {
+  presetsContainer.innerHTML = '';
+
+  PRESETS.forEach(preset => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = preset.name;
+    btn.addEventListener('click', () => applyPreset(preset));
+    presetsContainer.appendChild(btn);
+  });
+
+  userPresets.forEach((preset, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'user-preset';
+    btn.title = 'Saved preset — click to load';
+
+    const label = document.createElement('span');
+    label.textContent = preset.name;
+    btn.appendChild(label);
+
+    const del = document.createElement('span');
+    del.className = 'chip-x';
+    del.textContent = '×';
+    del.title = `Delete "${preset.name}"`;
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      userPresets.splice(i, 1);
+      persistUserPresets();
+      renderPresetChips();
+    });
+    btn.appendChild(del);
+
+    btn.addEventListener('click', () => applyPreset(preset));
+    presetsContainer.appendChild(btn);
+  });
 }
 
 // ---------- Transport ----------
@@ -1629,13 +1770,35 @@ function bindEvents() {
     });
   });
 
-  // Preset chips
-  PRESETS.forEach(preset => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = preset.name;
-    btn.addEventListener('click', () => applyPreset(preset));
-    presetsContainer.appendChild(btn);
+  // Preset chips (built-in + saved)
+  renderPresetChips();
+
+  // Save current state as a user preset
+  const savePresetBtn = document.getElementById('preset-save-btn');
+  const savePresetForm = document.getElementById('preset-save-form');
+  const presetNameInput = document.getElementById('preset-name');
+  const commitSavePreset = () => {
+    const name = presetNameInput.value.trim() || `Preset ${userPresets.length + 1}`;
+    userPresets.push({ name, ...serializeState() });
+    persistUserPresets();
+    renderPresetChips();
+    presetNameInput.value = '';
+    savePresetForm.classList.add('hidden');
+    savePresetBtn.classList.remove('hidden');
+  };
+  const cancelSavePreset = () => {
+    savePresetForm.classList.add('hidden');
+    savePresetBtn.classList.remove('hidden');
+  };
+  savePresetBtn.addEventListener('click', () => {
+    savePresetBtn.classList.add('hidden');
+    savePresetForm.classList.remove('hidden');
+    presetNameInput.focus();
+  });
+  document.getElementById('preset-save-ok').addEventListener('click', commitSavePreset);
+  presetNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') commitSavePreset();
+    if (e.key === 'Escape') cancelSavePreset();
   });
 
   playPauseButton.addEventListener('click', togglePlay);

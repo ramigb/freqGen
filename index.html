@@ -118,6 +118,14 @@
             <span class="hint-tag" title="Binaural presets need headphones">phones</span>
           </h2>
           <div class="preset-chips" id="presets"></div>
+          <div class="preset-save">
+            <button id="preset-save-btn" class="preset-save-btn" type="button">+ Save current</button>
+            <div id="preset-save-form" class="preset-save-form hidden">
+              <input id="preset-name" type="text" placeholder="Name this preset…" maxlength="40"
+                aria-label="Preset name" />
+              <button id="preset-save-ok" type="button">Save</button>
+            </div>
+          </div>
         </section>
 
         <section class="section">

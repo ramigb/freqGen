@@ -550,6 +550,94 @@ select:focus {
   background: rgba(108, 243, 199, 0.07);
 }
 
+.preset-chips .user-preset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-color: rgba(108, 243, 199, 0.28);
+  background: rgba(108, 243, 199, 0.05);
+}
+
+.preset-chips .user-preset .chip-x {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  margin-right: -3px;
+  padding: 0 2px;
+  border-radius: 50%;
+  transition: color 0.15s ease;
+}
+
+.preset-chips .user-preset .chip-x:hover {
+  color: var(--danger);
+}
+
+.preset-save {
+  margin-top: 10px;
+}
+
+.preset-save-btn {
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: none;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-save-btn:hover {
+  color: var(--accent);
+  border-color: rgba(108, 243, 199, 0.4);
+}
+
+.preset-save-form {
+  display: flex;
+  gap: 8px;
+}
+
+.preset-save-form.hidden,
+.preset-save-btn.hidden {
+  display: none;
+}
+
+.preset-save-form input {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 7px 10px;
+  outline: none;
+}
+
+.preset-save-form input:focus {
+  border-color: rgba(108, 243, 199, 0.4);
+}
+
+.preset-save-form button {
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #0a0d13;
+  background: var(--accent-strong);
+  border: none;
+  border-radius: 9px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.preset-save-form button:hover {
+  background: var(--accent);
+}
+
 /* Pan row */
 .pan-row {
   display: flex;

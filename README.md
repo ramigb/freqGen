@@ -18,7 +18,7 @@ A client-side drone synthesizer and tone generator with live visualizers. Stack 
 - **Sweep** — frequency glides between two values, once or looping
 - **Swell** — slow LFO breathing on each channel's gain (rate + depth)
 - **Master section** — volume, 3-band EQ (low cut, high cut, peaking mid), and a convolution reverb (mix + decay)
-- **Presets** — binaural-beat pairs, chord stacks, and "Rebalance" (a detuned C-add9 drone; headphones recommended)
+- **Presets** — binaural-beat pairs, chord stacks, and "Rebalance" (a detuned C-add9 drone; headphones recommended) — plus **save/load your own**, stored locally in the browser
 - **Piano play mode** — on-screen piano plus computer-keyboard input (Z/Q rows), polyphonic, with selectable voice (Pad, Sin, Tri, Saw, Sqr) and octave shift
 - **Steer mode** — held keys magnetically glide every running channel to the nearest held pitch class; releasing slides them home
 - **Visualizers** — waveform, spectrum, radial burst, and XY scope (Lissajous), with a Display dock for sensitivity, smoothing, glow, line width, trails, motion, FFT resolution, and color mode
