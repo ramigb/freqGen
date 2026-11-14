@@ -839,6 +839,92 @@ select:focus {
   border-color: rgba(255, 107, 107, 0.35);
 }
 
+/* Record cluster */
+.t-rec {
+  display: flex;
+  gap: 6px;
+}
+
+.t-rec-btn {
+  min-width: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.t-rec-btn .i-rec {
+  color: var(--danger);
+}
+
+.t-rec-btn .i-stop {
+  display: none;
+}
+
+.t-rec-btn:hover {
+  color: var(--danger);
+  background: rgba(255, 107, 107, 0.1);
+  border-color: rgba(255, 107, 107, 0.35);
+}
+
+.t-rec-btn.recording {
+  color: var(--danger);
+  background: rgba(255, 107, 107, 0.14);
+  border-color: rgba(255, 107, 107, 0.5);
+}
+
+.t-rec-btn.recording .i-rec {
+  display: none;
+}
+
+.t-rec-btn.recording .i-stop {
+  display: block;
+  animation: rec-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes rec-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.t-rec-fmt {
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.t-rec-fmt:hover:not(:disabled) {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.t-rec-fmt:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.t-rec-fmt option {
+  background: var(--panel);
+  color: var(--text);
+}
+
 /* ============ Visualizer ============ */
 .visualizer-panel {
   position: relative;
@@ -1076,6 +1162,43 @@ canvas#scope {
   font-weight: 600;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+.key-voice {
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line-soft);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.key-voice:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.key-voice optgroup,
+.key-voice option {
+  background: var(--panel);
+  color: var(--text);
+}
+
+.key-fx {
+  position: absolute;
+  left: 12px;
+  bottom: calc(100% + 10px);
+  z-index: 7;
+  width: min(320px, calc(100vw - 60px));
+  padding: 12px 14px 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: rgba(10, 13, 19, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .piano {

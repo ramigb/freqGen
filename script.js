@@ -23,6 +23,7 @@ let masterFilters = {
 let analyser;
 let analyserL;
 let analyserR;
+let mediaDest;
 let timeArray;
 let freqArray;
 let timeArrayL;
@@ -970,6 +971,10 @@ function createAudioGraph() {
     mid.connect(convNode);
     convNode.connect(wetGain);
     wetGain.connect(analyser);
+
+    // Recording tap: everything audible flows through the analyser node
+    mediaDest = audioCtx.createMediaStreamDestination();
+    analyser.connect(mediaDest);
   }
 }
 
@@ -1423,19 +1428,56 @@ const KEY_NOTES = {
   y: 21, '7': 22, u: 23, i: 24, '9': 25, o: 26, '0': 27, p: 28,
 };
 
-const keyVoices = new Map(); // semitone -> { osc, g }
+const keyVoices = new Map(); // semitone -> { oscs, mix, lp, g, lfo, lfoGain, mod, modG }
 const heldNotes = new Set(); // semitones held in steer mode
-let padWaveCache = null;
 
-function padWave() {
-  if (!padWaveCache) {
+// Voice presets for key-play mode. harmonics -> additive periodic wave,
+// fm -> modulated carrier (metallic/bell timbres), voices/spread -> detuned stack.
+const KEY_VOICES = {
+  pad:    { label: 'Pad',    harmonics: [1, 0.3, 0.12, 0.06], voices: 2, spread: 8,
+            attack: 0.5, decay: 0.4, sustain: 0.85, release: 1.2, lp: 9000,
+            vib: { rate: 4.5, depth: 0 } },
+  organ:  { label: 'Organ',  harmonics: [1, 0.8, 0.55, 0.4, 0.28, 0.16, 0.1, 0.05],
+            attack: 0.015, decay: 0, sustain: 1, release: 0.12, lp: 12000,
+            vib: { rate: 5.5, depth: 5 } },
+  ekeys:  { label: 'E.Keys', harmonics: [1, 0.5, 0.2, 0.08, 0.03],
+            attack: 0.005, decay: 1.4, sustain: 0.3, release: 0.5, lp: 7000 },
+  bell:   { label: 'Bell',   fm: { ratio: 3.5, index: 8, decay: 1.1 },
+            attack: 0.003, decay: 1.6, sustain: 0, release: 0.4, lp: 14000 },
+  bass:   { label: 'Bass',   harmonics: [1, 0.6, 0.35, 0.2, 0.12, 0.07, 0.04, 0.02],
+            attack: 0.008, decay: 0.35, sustain: 0.7, release: 0.3, lp: 900 },
+  pluck:  { label: 'Pluck',  type: 'triangle',
+            attack: 0.004, decay: 0.4, sustain: 0, release: 0.15, lp: 3500 },
+  lead:   { label: 'Lead',   type: 'sawtooth', voices: 2, spread: 12,
+            attack: 0.04, decay: 0, sustain: 1, release: 0.35, lp: 6500,
+            vib: { rate: 5.2, depth: 25 } },
+  flute:  { label: 'Flute',  harmonics: [1, 0.18, 0.05],
+            attack: 0.09, decay: 0, sustain: 1, release: 0.4, lp: 6000,
+            vib: { rate: 4.8, depth: 14 } },
+  sine:     { label: 'Sine',     type: 'sine',
+              attack: 0.02, decay: 0, sustain: 1, release: 0.25, lp: 20000 },
+  triangle: { label: 'Triangle', type: 'triangle',
+              attack: 0.02, decay: 0, sustain: 1, release: 0.25, lp: 20000 },
+  sawtooth: { label: 'Saw',      type: 'sawtooth',
+              attack: 0.02, decay: 0, sustain: 1, release: 0.25, lp: 14000 },
+  square:   { label: 'Square',   type: 'square',
+              attack: 0.02, decay: 0, sustain: 1, release: 0.25, lp: 10000 },
+};
+
+// Envelope/vibrato/brightness overrides, reset from the voice preset on switch
+const keyFx = {};
+const keyWaveCache = new Map();
+
+function keyWave(harmonics) {
+  const k = harmonics.join(',');
+  if (!keyWaveCache.has(k)) {
     const n = HARMONIC_COUNT;
     const real = new Float32Array(n + 1);
     const imag = new Float32Array(n + 1);
-    [1, 0.3, 0.12, 0.06].forEach((v, i) => { imag[i + 1] = v; });
-    padWaveCache = audioCtx.createPeriodicWave(real, imag);
+    harmonics.slice(0, n).forEach((v, i) => { imag[i + 1] = v; });
+    keyWaveCache.set(k, audioCtx.createPeriodicWave(real, imag));
   }
-  return padWaveCache;
+  return keyWaveCache.get(k);
 }
 
 function noteFreq(sem) {
@@ -1454,23 +1496,77 @@ function noteOn(sem) {
   if (keyVoices.has(sem)) noteOff(sem, true);
 
   const t = audioCtx.currentTime;
-  const osc = audioCtx.createOscillator();
-  if (playMode.wave === 'pad') {
-    osc.setPeriodicWave(padWave());
-  } else {
-    osc.type = playMode.wave;
-  }
-  osc.frequency.value = noteFreq(sem);
+  const v = KEY_VOICES[playMode.wave] || KEY_VOICES.pad;
+  const f = noteFreq(sem);
 
   const g = audioCtx.createGain();
   g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(0.3, t + 0.025);
 
-  osc.connect(g);
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = keyFx.lp;
+
+  const n = Math.max(1, Math.round(v.voices || 1));
+  const mix = audioCtx.createGain();
+  mix.gain.value = 1 / Math.sqrt(n);
+
+  const wave = v.harmonics ? keyWave(v.harmonics) : null;
+  const oscs = [];
+  for (let i = 0; i < n; i++) {
+    const osc = audioCtx.createOscillator();
+    if (wave) {
+      osc.setPeriodicWave(wave);
+    } else {
+      osc.type = v.type || 'sine';
+    }
+    osc.frequency.value = f;
+    osc.detune.value = (v.spread || 0) * (i - (n - 1) / 2);
+    osc.connect(mix);
+    osc.start();
+    oscs.push(osc);
+  }
+
+  // Vibrato LFO -> detune of every stacked oscillator
+  let lfo = null;
+  let lfoGain = null;
+  if (keyFx.vibDepth > 0.5 && keyFx.vibRate > 0.01) {
+    lfo = audioCtx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = keyFx.vibRate;
+    lfoGain = audioCtx.createGain();
+    lfoGain.gain.value = keyFx.vibDepth;
+    lfo.connect(lfoGain);
+    oscs.forEach(o => lfoGain.connect(o.detune));
+    lfo.start();
+  }
+
+  // FM modulator for metallic voices (bell) — index decays so it brightens then settles
+  let mod = null;
+  let modG = null;
+  if (v.fm) {
+    mod = audioCtx.createOscillator();
+    mod.frequency.value = f * v.fm.ratio;
+    modG = audioCtx.createGain();
+    modG.gain.setValueAtTime(Math.min(f * v.fm.index, 12000), t);
+    modG.gain.exponentialRampToValueAtTime(0.001, t + Math.max(0.05, v.fm.decay));
+    mod.connect(modG);
+    oscs.forEach(o => modG.connect(o.frequency));
+    mod.start();
+  }
+
+  // Attack -> decay -> sustain envelope on the note gain
+  const peak = 0.3;
+  const atk = Math.max(0.002, keyFx.attack);
+  g.gain.linearRampToValueAtTime(peak, t + atk);
+  if (keyFx.sustain < 1 && keyFx.decay > 0) {
+    g.gain.setTargetAtTime(peak * keyFx.sustain, t + atk, keyFx.decay / 3);
+  }
+
+  mix.connect(lp);
+  lp.connect(g);
   g.connect(masterGain);
-  osc.start();
 
-  keyVoices.set(sem, { osc, g });
+  keyVoices.set(sem, { oscs, mix, lp, g, lfo, lfoGain, mod, modG });
   setKeyDown(sem, true);
 }
 
@@ -1480,18 +1576,21 @@ function noteOff(sem, immediate = false) {
   keyVoices.delete(sem);
 
   const t = audioCtx.currentTime;
+  const rel = immediate ? 0.01 : Math.max(0.02, keyFx.release);
   v.g.gain.cancelScheduledValues(t);
   v.g.gain.setValueAtTime(v.g.gain.value, t);
-  v.g.gain.setTargetAtTime(0, t, immediate ? 0.01 : 0.18);
+  v.g.gain.setTargetAtTime(0, t, rel / 3);
 
-  const { osc, g } = v;
+  const wait = immediate ? 80 : Math.min(rel * 1000 + 500, 20000);
   setTimeout(() => {
-    try {
-      osc.stop();
-      osc.disconnect();
-      g.disconnect();
-    } catch (e) { }
-  }, immediate ? 80 : 900);
+    v.oscs.forEach(o => { try { o.stop(); o.disconnect(); } catch (e) { } });
+    [v.lfo, v.mod].forEach(o => {
+      if (o) { try { o.stop(); o.disconnect(); } catch (e) { } }
+    });
+    [v.lfoGain, v.modG, v.mix, v.lp, v.g].forEach(nd => {
+      if (nd) { try { nd.disconnect(); } catch (e) { } }
+    });
+  }, wait);
 
   setKeyDown(sem, false);
 }
@@ -1569,7 +1668,268 @@ function setPlayMode(on) {
   playMode.enabled = on;
   document.getElementById('piano-bar').classList.toggle('hidden', !on);
   document.getElementById('piano-toggle').classList.toggle('open', on);
-  if (!on) releaseAllKeys();
+  if (!on) {
+    releaseAllKeys();
+    document.getElementById('key-fx').classList.add('hidden');
+    document.getElementById('key-fx-toggle').classList.remove('open');
+  }
+}
+
+const fmtSecs = v => `${v.toFixed(2)} s`;
+
+// Reset keyFx from the voice preset and reflect it in the Sound panel
+function loadKeyVoice(name) {
+  const v = KEY_VOICES[name] || KEY_VOICES.pad;
+  playMode.wave = name;
+  keyFx.attack = v.attack;
+  keyFx.decay = v.decay;
+  keyFx.sustain = v.sustain;
+  keyFx.release = v.release;
+  keyFx.vibRate = v.vib?.rate ?? 0;
+  keyFx.vibDepth = v.vib?.depth ?? 0;
+  keyFx.lp = v.lp ?? 20000;
+  syncKeyFxUI();
+}
+
+function syncKeyFxUI() {
+  const set = (id, valId, v, fmt) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = v;
+    document.getElementById(valId).textContent = fmt(v);
+    paintRange(el);
+  };
+  set('kf-attack', 'kf-attack-val', keyFx.attack, fmtSecs);
+  set('kf-decay', 'kf-decay-val', keyFx.decay, fmtSecs);
+  set('kf-sustain', 'kf-sustain-val', keyFx.sustain, fmtPct);
+  set('kf-release', 'kf-release-val', keyFx.release, fmtSecs);
+  set('kf-vibrate', 'kf-vibrate-val', keyFx.vibRate, v => `${v.toFixed(1)} Hz`);
+  set('kf-vibdepth', 'kf-vibdepth-val', keyFx.vibDepth, v => `${Math.round(v)}¢`);
+  set('kf-lp', 'kf-lp-val', keyFx.lp, fmtHz);
+}
+
+// ---------- Output recorder ----------
+
+// MediaRecorder compresses to whatever the browser supports; WAV is encoded
+// from raw PCM tapped off the master bus via an AudioWorklet (or ScriptProcessor).
+const PCM_TAP_SRC = `
+class PcmTap extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.active = false;
+    this.port.onmessage = (e) => { this.active = !!e.data; };
+  }
+  process(inputs) {
+    const inp = inputs[0];
+    if (this.active && inp && inp.length && inp[0].length) {
+      this.port.postMessage(inp.map(ch => ch.slice(0)));
+    }
+    return true;
+  }
+}
+registerProcessor('pcm-tap', PcmTap);
+`;
+
+let mediaMime = null;      // { mime, ext, label } | false once probed
+let mediaRecorder = null;
+let mediaChunks = [];
+let pcmTap = null;         // { set active(bool) } handle over the tap node
+let pcmReady = null;
+let pcmChunks = [];
+let pcmFrames = 0;
+let recTimer = null;
+let recStartedAt = 0;
+let recording = false;     // false | 'wav' | 'media'
+
+function pickMediaMime() {
+  if (mediaMime !== null) return mediaMime;
+  mediaMime = false;
+  if (window.MediaRecorder) {
+    const candidates = [
+      ['audio/webm;codecs=opus', 'webm', 'WebM'],
+      ['audio/webm', 'webm', 'WebM'],
+      ['audio/ogg;codecs=opus', 'ogg', 'OGG'],
+      ['audio/mp4', 'm4a', 'M4A'],
+    ];
+    for (const [mime, ext, label] of candidates) {
+      if (MediaRecorder.isTypeSupported(mime)) {
+        mediaMime = { mime, ext, label };
+        break;
+      }
+    }
+  }
+  return mediaMime;
+}
+
+function setupScriptProcessorTap() {
+  const sp = audioCtx.createScriptProcessor(4096, 2, 2);
+  let active = false;
+  sp.onaudioprocess = (e) => {
+    if (!active) return;
+    const inp = e.inputBuffer;
+    const block = [];
+    for (let c = 0; c < inp.numberOfChannels; c++) {
+      block.push(inp.getChannelData(c).slice(0));
+    }
+    pcmChunks.push(block);
+    pcmFrames += block[0].length;
+  };
+  const sink = audioCtx.createGain();
+  sink.gain.value = 0;
+  analyser.connect(sp);
+  sp.connect(sink);
+  sink.connect(audioCtx.destination);
+  return { set active(on) { active = on; } };
+}
+
+function setupPcmTap() {
+  if (pcmReady) return pcmReady;
+  if (audioCtx.audioWorklet) {
+    const url = URL.createObjectURL(new Blob([PCM_TAP_SRC], { type: 'text/javascript' }));
+    pcmReady = audioCtx.audioWorklet.addModule(url).then(() => {
+      URL.revokeObjectURL(url);
+      const node = new AudioWorkletNode(audioCtx, 'pcm-tap');
+      node.port.onmessage = (e) => {
+        pcmChunks.push(e.data);
+        pcmFrames += e.data[0].length;
+      };
+      const sink = audioCtx.createGain();
+      sink.gain.value = 0;
+      analyser.connect(node);
+      node.connect(sink);
+      sink.connect(audioCtx.destination);
+      pcmTap = {
+        set active(on) { node.port.postMessage(on); },
+      };
+    }).catch(() => {
+      pcmTap = setupScriptProcessorTap();
+    });
+    return pcmReady;
+  }
+  pcmTap = setupScriptProcessorTap();
+  pcmReady = Promise.resolve();
+  return pcmReady;
+}
+
+function encodeWav(chunks, frames, numCh, sampleRate) {
+  const inter = new Float32Array(frames * numCh);
+  let off = 0;
+  for (const block of chunks) {
+    const n = block[0].length;
+    for (let i = 0; i < n; i++) {
+      for (let c = 0; c < numCh; c++) {
+        inter[off + i * numCh + c] = block[c] ? block[c][i] : 0;
+      }
+    }
+    off += n * numCh;
+  }
+  const buf = new ArrayBuffer(44 + inter.length * 2);
+  const dv = new DataView(buf);
+  const wstr = (o, s) => {
+    for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i));
+  };
+  wstr(0, 'RIFF');
+  dv.setUint32(4, 36 + inter.length * 2, true);
+  wstr(8, 'WAVE');
+  wstr(12, 'fmt ');
+  dv.setUint32(16, 16, true);
+  dv.setUint16(20, 1, true);
+  dv.setUint16(22, numCh, true);
+  dv.setUint32(24, sampleRate, true);
+  dv.setUint32(28, sampleRate * numCh * 2, true);
+  dv.setUint16(32, numCh * 2, true);
+  dv.setUint16(34, 16, true);
+  wstr(36, 'data');
+  dv.setUint32(40, inter.length * 2, true);
+  let o = 44;
+  for (let i = 0; i < inter.length; i++, o += 2) {
+    const s = Math.max(-1, Math.min(1, inter[i]));
+    dv.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+function updateRecTime() {
+  const s = Math.floor((performance.now() - recStartedAt) / 1000);
+  document.getElementById('rec-time').textContent =
+    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function recFilename(ext) {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `freqgen-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` +
+    `-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.${ext}`;
+}
+
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+async function startRecording() {
+  if (recording) return;
+  if (!audioCtx) createAudioGraph();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  const recBtn = document.getElementById('record');
+  const recFormatEl = document.getElementById('rec-format');
+  if (recFormatEl.value === 'wav') {
+    await setupPcmTap();
+    if (!pcmTap) return;
+    pcmChunks = [];
+    pcmFrames = 0;
+    pcmTap.active = true;
+    recording = 'wav';
+  } else {
+    const info = pickMediaMime();
+    if (!info || !mediaDest) return;
+    mediaChunks = [];
+    mediaRecorder = new MediaRecorder(mediaDest.stream, { mimeType: info.mime });
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size) mediaChunks.push(e.data); };
+    mediaRecorder.start(250);
+    recording = 'media';
+  }
+
+  recStartedAt = performance.now();
+  recTimer = setInterval(updateRecTime, 500);
+  updateRecTime();
+  recBtn.classList.add('recording');
+  recFormatEl.disabled = true;
+}
+
+function stopRecording() {
+  if (!recording) return;
+  const mode = recording;
+  recording = false;
+  clearInterval(recTimer);
+  recTimer = null;
+  document.getElementById('record').classList.remove('recording');
+  document.getElementById('rec-time').textContent = '';
+  document.getElementById('rec-format').disabled = false;
+
+  if (mode === 'wav') {
+    pcmTap.active = false;
+    if (pcmFrames > 0 && pcmChunks[0]) {
+      const numCh = pcmChunks[0].length;
+      const blob = encodeWav(pcmChunks, pcmFrames, numCh, audioCtx.sampleRate);
+      downloadBlob(blob, recFilename('wav'));
+    }
+    pcmChunks = [];
+    pcmFrames = 0;
+  } else if (mediaRecorder) {
+    const info = pickMediaMime();
+    mediaRecorder.onstop = () => {
+      downloadBlob(new Blob(mediaChunks, { type: info.mime }), recFilename(info.ext));
+      mediaChunks = [];
+      mediaRecorder = null;
+    };
+    mediaRecorder.stop();
+  }
 }
 
 function buildPiano() {
@@ -1773,12 +2133,73 @@ function bindEvents() {
       releaseAllKeys();
     });
   });
-  document.querySelectorAll('#piano-wave button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#piano-wave button')
-        .forEach(b => b.classList.toggle('active', b === btn));
-      playMode.wave = btn.dataset.pwave;
+  // Key voice select
+  const keyVoiceSel = document.getElementById('key-voice');
+  [['Voices', ['pad', 'organ', 'ekeys', 'bell', 'bass', 'pluck', 'lead', 'flute']],
+   ['Raw waves', ['sine', 'triangle', 'sawtooth', 'square']]]
+    .forEach(([label, keys]) => {
+      const og = document.createElement('optgroup');
+      og.label = label;
+      keys.forEach(k => {
+        const o = document.createElement('option');
+        o.value = k;
+        o.textContent = KEY_VOICES[k].label;
+        og.appendChild(o);
+      });
+      keyVoiceSel.appendChild(og);
     });
+  keyVoiceSel.value = playMode.wave;
+  loadKeyVoice(playMode.wave);
+  keyVoiceSel.addEventListener('change', () => loadKeyVoice(keyVoiceSel.value));
+
+  // Key-sound panel: envelope + vibrato + brightness
+  document.getElementById('key-fx-toggle').addEventListener('click', (e) => {
+    document.getElementById('key-fx').classList.toggle('hidden');
+    e.currentTarget.classList.toggle('open');
+  });
+
+  const bindKeyFx = (id, valId, key, fmt, live) => {
+    const el = document.getElementById(id);
+    const valEl = document.getElementById(valId);
+    el.addEventListener('input', (e) => {
+      keyFx[key] = parseFloat(e.target.value);
+      valEl.textContent = fmt(keyFx[key]);
+      paintRange(el);
+      if (live && audioCtx) live(keyFx[key]);
+    });
+  };
+  const liveVib = (prop) => (x) => keyVoices.forEach(v => {
+    if (v.lfo) v.lfo[prop].setTargetAtTime(x, audioCtx.currentTime, 0.05);
+  });
+  bindKeyFx('kf-attack', 'kf-attack-val', 'attack', fmtSecs);
+  bindKeyFx('kf-decay', 'kf-decay-val', 'decay', fmtSecs);
+  bindKeyFx('kf-sustain', 'kf-sustain-val', 'sustain', fmtPct);
+  bindKeyFx('kf-release', 'kf-release-val', 'release', fmtSecs);
+  bindKeyFx('kf-vibrate', 'kf-vibrate-val', 'vibRate', v => `${v.toFixed(1)} Hz`,
+    liveVib('frequency'));
+  bindKeyFx('kf-vibdepth', 'kf-vibdepth-val', 'vibDepth', v => `${Math.round(v)}¢`,
+    (x) => keyVoices.forEach(v => {
+      if (v.lfoGain) v.lfoGain.gain.setTargetAtTime(x, audioCtx.currentTime, 0.05);
+    }));
+  bindKeyFx('kf-lp', 'kf-lp-val', 'lp', fmtHz,
+    (x) => keyVoices.forEach(v => {
+      v.lp.frequency.setTargetAtTime(x, audioCtx.currentTime, 0.05);
+    }));
+
+  // Output recorder
+  const mm = pickMediaMime();
+  const recFmtOpt = document.querySelector('#rec-format option[value="compressed"]');
+  if (mm) {
+    recFmtOpt.textContent = mm.label;
+  } else {
+    recFmtOpt.disabled = true;
+  }
+  document.getElementById('record').addEventListener('click', () => {
+    if (recording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
   });
 
   // Preset chips (built-in + saved)

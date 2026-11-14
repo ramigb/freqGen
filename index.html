@@ -154,6 +154,23 @@
           </svg>
           <span class="t-label">Play</span>
         </button>
+        <div class="t-rec">
+          <button id="record" class="t-rec-btn" type="button"
+            title="Record the output mix" aria-label="Record the output mix">
+            <svg class="i-rec" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="12" cy="12" r="7" />
+            </svg>
+            <svg class="i-stop" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="7" y="7" width="10" height="10" rx="2" />
+            </svg>
+            <span class="t-rec-time" id="rec-time"></span>
+          </button>
+          <select id="rec-format" class="t-rec-fmt" aria-label="Recording format"
+            title="Recording format">
+            <option value="wav">WAV</option>
+            <option value="compressed">WebM</option>
+          </select>
+        </div>
       </footer>
     </aside>
 
@@ -281,23 +298,78 @@
       </div>
 
       <div class="piano-bar hidden" id="piano-bar">
+        <div class="key-fx hidden" id="key-fx">
+          <div class="eq-grid">
+            <div class="eq-param">
+              <div class="eq-param-head">
+                <span class="eq-label">Attack</span>
+                <span class="val" id="kf-attack-val">—</span>
+              </div>
+              <input type="range" id="kf-attack" min="0.001" max="2" step="0.001" />
+            </div>
+            <div class="eq-param">
+              <div class="eq-param-head">
+                <span class="eq-label">Decay</span>
+                <span class="val" id="kf-decay-val">—</span>
+              </div>
+              <input type="range" id="kf-decay" min="0" max="4" step="0.01" />
+            </div>
+            <div class="eq-param">
+              <div class="eq-param-head">
+                <span class="eq-label">Sustain</span>
+                <span class="val" id="kf-sustain-val">—</span>
+              </div>
+              <input type="range" id="kf-sustain" min="0" max="1" step="0.01" />
+            </div>
+            <div class="eq-param">
+              <div class="eq-param-head">
+                <span class="eq-label">Release</span>
+                <span class="val" id="kf-release-val">—</span>
+              </div>
+              <input type="range" id="kf-release" min="0.02" max="4" step="0.01" />
+            </div>
+            <div class="eq-param">
+              <div class="eq-param-head">
+                <span class="eq-label">Vibrato rate</span>
+                <span class="val" id="kf-vibrate-val">—</span>
+              </div>
+              <input type="range" id="kf-vibrate" min="0" max="10" step="0.1" />
+            </div>
+            <div class="eq-param">
+              <div class="eq-param-head">
+                <span class="eq-label">Vibrato depth</span>
+                <span class="val" id="kf-vibdepth-val">—</span>
+              </div>
+              <input type="range" id="kf-vibdepth" min="0" max="60" step="1" />
+            </div>
+            <div class="eq-param">
+              <div class="eq-param-head">
+                <span class="eq-label">Brightness</span>
+                <span class="val" id="kf-lp-val">—</span>
+              </div>
+              <input type="range" id="kf-lp" min="200" max="20000" step="10" />
+            </div>
+          </div>
+          <p class="harm-hint">Tweaks apply to new notes; vibrato & brightness update held notes live.</p>
+        </div>
         <div class="piano-side">
           <div class="seg" id="piano-mode" role="group" aria-label="Key mode">
             <button type="button" data-pmode="play" class="active">Play</button>
             <button type="button" data-pmode="steer">Steer</button>
           </div>
-          <div class="seg" id="piano-wave" role="group" aria-label="Piano voice">
-            <button type="button" data-pwave="pad" class="active">Pad</button>
-            <button type="button" data-pwave="sine">Sin</button>
-            <button type="button" data-pwave="triangle">Tri</button>
-            <button type="button" data-pwave="sawtooth">Saw</button>
-            <button type="button" data-pwave="square">Sqr</button>
-          </div>
+          <select id="key-voice" class="key-voice" aria-label="Key voice"></select>
           <div class="oct-ctl">
             <button type="button" id="oct-down" aria-label="Octave down">−</button>
             <span id="oct-val">Oct 4</span>
             <button type="button" id="oct-up" aria-label="Octave up">+</button>
           </div>
+          <button id="key-fx-toggle" class="eq-toggle-btn" type="button">
+            <span>Sound</span>
+            <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
         </div>
         <div class="piano" id="piano"></div>
       </div>
