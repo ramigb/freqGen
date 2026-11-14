@@ -1471,6 +1471,66 @@ function resizeCanvas() {
 
 window.addEventListener('resize', resizeCanvas);
 
+// ---------- About dialog (renders README.md) ----------
+
+function renderMarkdown(md) {
+  const esc = (s) => s
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const inline = (s) => esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img alt="$1" src="$2">')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+  let html = '';
+  let para = [];
+  let list = null;
+  let inCode = false;
+  let codeBuf = [];
+  const flushPara = () => {
+    if (para.length) { html += `<p>${para.map(inline).join(' ')}</p>`; para = []; }
+  };
+  const flushList = () => {
+    if (list) { html += `<ul>${list.map(i => `<li>${inline(i)}</li>`).join('')}</ul>`; list = null; }
+  };
+
+  for (const line of md.split('\n')) {
+    if (line.trimStart().startsWith('```')) {
+      if (inCode) {
+        html += `<pre><code>${esc(codeBuf.join('\n'))}</code></pre>`;
+        codeBuf = [];
+        inCode = false;
+      } else {
+        flushPara(); flushList();
+        inCode = true;
+      }
+      continue;
+    }
+    if (inCode) { codeBuf.push(line); continue; }
+
+    const t = line.trim();
+    if (!t) { flushPara(); flushList(); continue; }
+    if (/^-{3,}$/.test(t)) { flushPara(); flushList(); html += '<hr>'; continue; }
+
+    const h = t.match(/^(#{1,4})\s+(.*)/);
+    if (h) {
+      flushPara(); flushList();
+      const lvl = h[1].length;
+      html += `<h${lvl}>${inline(h[2])}</h${lvl}>`;
+      continue;
+    }
+
+    const li = t.match(/^[-*]\s+(.*)/);
+    if (li) { flushPara(); list = list || []; list.push(li[1]); continue; }
+
+    flushList();
+    para.push(t);
+  }
+  flushPara(); flushList();
+  return html;
+}
+
 // ---------- Events ----------
 
 function bindEvents() {
@@ -1579,6 +1639,38 @@ function bindEvents() {
 
   playPauseButton.addEventListener('click', togglePlay);
   stopButton.addEventListener('click', stopAll);
+
+  // About dialog — fetches and renders README.md once
+  const aboutOverlay = document.getElementById('about-overlay');
+  const aboutBody = document.getElementById('about-body');
+  const aboutToggle = document.getElementById('about-toggle');
+  let aboutLoaded = false;
+  const openAbout = () => {
+    aboutOverlay.classList.remove('hidden');
+    aboutToggle.classList.add('open');
+    if (aboutLoaded) return;
+    aboutLoaded = true;
+    fetch('README.md')
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(md => { aboutBody.innerHTML = renderMarkdown(md); })
+      .catch(() => {
+        aboutBody.innerHTML = '<p>Could not load README.md — read it on ' +
+          '<a href="https://github.com/ramigb/freqGen" target="_blank" rel="noopener">GitHub</a>.</p>';
+      });
+  };
+  const closeAbout = () => {
+    aboutOverlay.classList.add('hidden');
+    aboutToggle.classList.remove('open');
+  };
+  aboutToggle.addEventListener('click', openAbout);
+  document.getElementById('credits-about').addEventListener('click', openAbout);
+  document.getElementById('about-close').addEventListener('click', closeAbout);
+  aboutOverlay.addEventListener('click', (e) => {
+    if (e.target === aboutOverlay) closeAbout();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !aboutOverlay.classList.contains('hidden')) closeAbout();
+  });
 
   // Spacebar toggles play (unless typing in an input)
   document.addEventListener('keydown', (e) => {

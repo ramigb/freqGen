@@ -2,7 +2,11 @@
 
 A client-side drone synthesizer and tone generator with live visualizers. Stack detuned voices, add slow swells and reverb, then steer the whole instrument from your keyboard.
 
-**Try it live: https://ramigb.github.io/freqGen/**
+**Try it live: https://ramigb.github.io/freqGen/ · Source: https://github.com/ramigb/freqGen**
+
+[![Live demo](https://img.shields.io/badge/demo-live-4fe0a3)](https://ramigb.github.io/freqGen/)
+[![Web Audio API](https://img.shields.io/badge/built%20with-Web%20Audio%20API-6cf3c7)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
+[![No backend](https://img.shields.io/badge/backend-none%20required-8b95a7)](https://github.com/ramigb/freqGen)
 
 ![freqGen — Rebalance preset, radial visualizer, piano bar, and display dock](screenshot.png)
 
@@ -39,3 +43,9 @@ A client-side drone synthesizer and tone generator with live visualizers. Stack 
 - Audio contexts must start from a user action; use the Play button (or press a piano key) if audio is suspended.
 - Binaural presets need headphones to hear the beat.
 - The page is entirely client-side—no backend required.
+
+---
+
+Enjoying freqGen? [Star the repo](https://github.com/ramigb/freqGen) or share the live link — the whole instrument is three static files and a browser.
+
+**Links:** [Live demo](https://ramigb.github.io/freqGen/) · [Source code](https://github.com/ramigb/freqGen) · [Issues & ideas](https://github.com/ramigb/freqGen/issues)
