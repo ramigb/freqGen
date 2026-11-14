@@ -1,68 +1,287 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>freqGen</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
   <main class="app">
-    <header>
-      <h1>Frequency Generator</h1>
-      <p>Loop a tone, tweak the wave shape, and watch it dance.</p>
-    </header>
+    <aside class="controls-panel">
+      <header class="panel-header">
+        <div class="brand">
+          <svg class="brand-mark" width="22" height="22" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12 Q 5.5 4, 9 12 T 16 12 T 23 12" />
+          </svg>
+          <h1>freqGen</h1>
+        </div>
+        <div class="status">
+          <span class="status-dot"></span>
+          <span id="status-text">Standby</span>
+        </div>
+      </header>
 
-    <section class="controls">
-      <div class="control-block">
-        <label for="frequency">Frequency (Hz)</label>
-        <div class="inline-control">
-          <input type="range" id="frequency" min="20" max="2000" value="440" />
-          <input type="number" id="frequencyNumber" min="20" max="2000" value="440" />
+      <div class="controls-scroll">
+        <section class="section">
+          <h2 class="section-title">Output</h2>
+
+          <div class="field">
+            <div class="field-head">
+              <label for="master-volume">Master volume</label>
+              <span class="val" id="master-volume-val">50%</span>
+            </div>
+            <input type="range" id="master-volume" min="0" max="1" step="0.01" value="0.5" />
+          </div>
+
+          <button id="master-eq-toggle" class="drawer-toggle" type="button">
+            <span>Master EQ</span>
+            <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <div id="master-eq-container" class="eq-container hidden">
+            <div class="eq-grid">
+              <div class="eq-param">
+                <div class="eq-param-head">
+                  <span class="eq-label">Low cut</span>
+                  <span class="val" id="m-hp-val">20 Hz</span>
+                </div>
+                <input type="range" id="master-hp" min="20" max="2000" step="10" value="20" />
+              </div>
+              <div class="eq-param">
+                <div class="eq-param-head">
+                  <span class="eq-label">High cut</span>
+                  <span class="val" id="m-lp-val">20 kHz</span>
+                </div>
+                <input type="range" id="master-lp" min="20" max="20000" step="10" value="20000" />
+              </div>
+              <div class="eq-param">
+                <div class="eq-param-head">
+                  <span class="eq-label">Mid freq</span>
+                  <span class="val" id="m-mid-freq-val">1 kHz</span>
+                </div>
+                <input type="range" id="master-mid-freq" min="20" max="10000" step="10" value="1000" />
+              </div>
+              <div class="eq-param">
+                <div class="eq-param-head">
+                  <span class="eq-label">Mid gain</span>
+                  <span class="val" id="m-mid-gain-val">0 dB</span>
+                </div>
+                <input type="range" id="master-mid-gain" min="-15" max="15" step="1" value="0" />
+              </div>
+            </div>
+          </div>
+
+          <button id="reverb-toggle" class="drawer-toggle" type="button">
+            <span>Reverb</span>
+            <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <div id="reverb-container" class="eq-container hidden">
+            <div class="eq-grid">
+              <div class="eq-param">
+                <div class="eq-param-head">
+                  <span class="eq-label">Mix</span>
+                  <span class="val" id="rv-mix-val">0%</span>
+                </div>
+                <input type="range" id="reverb-mix" min="0" max="1" step="0.01" value="0" />
+              </div>
+              <div class="eq-param">
+                <div class="eq-param-head">
+                  <span class="eq-label">Decay</span>
+                  <span class="val" id="rv-decay-val">2.8 s</span>
+                </div>
+                <input type="range" id="reverb-decay" min="0.5" max="6" step="0.1" value="2.8" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">
+            <span>Presets</span>
+            <span class="hint-tag" title="Binaural presets need headphones">phones</span>
+          </h2>
+          <div class="preset-chips" id="presets"></div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">
+            <span>Channels</span>
+            <span class="count" id="channel-count">0</span>
+          </h2>
+          <div id="channels-container"></div>
+          <p class="empty-hint hidden" id="empty-hint">No channels — add one to start making noise.</p>
+          <button id="add-channel" class="add-btn" type="button">+ Add frequency</button>
+        </section>
+      </div>
+
+      <footer class="transport">
+        <button id="stop" class="t-stop" type="button" title="Stop" aria-label="Stop">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="2" />
+          </svg>
+        </button>
+        <button id="playPause" class="t-play" type="button">
+          <svg class="i-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          <svg class="i-pause" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
+          </svg>
+          <span class="t-label">Play</span>
+        </button>
+      </footer>
+    </aside>
+
+    <section class="visualizer-panel">
+      <canvas id="scope"></canvas>
+      <div class="viz-toolbar">
+        <div class="seg" id="viz-seg" role="group" aria-label="Visualization mode">
+          <button type="button" data-viz="waveform" class="active">Waveform</button>
+          <button type="button" data-viz="spectrum">Spectrum</button>
+          <button type="button" data-viz="radial">Radial</button>
+          <button type="button" data-viz="lissajous">XY Scope</button>
+        </div>
+        <button id="piano-toggle" class="piano-toggle" type="button"
+          title="Keyboard play mode" aria-label="Toggle keyboard play mode">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="6" width="20" height="12" rx="2" />
+            <path d="M6 6v7M10 6v7M14 6v7M18 6v7" />
+          </svg>
+          <span>Keys</span>
+        </button>
+      </div>
+
+      <div class="viz-dock">
+        <button id="viz-dock-toggle" class="viz-dock-toggle open" type="button"
+          title="Display settings" aria-label="Toggle display settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round">
+            <line x1="4" y1="6" x2="20" y2="6" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="18" x2="20" y2="18" />
+            <circle cx="9" cy="6" r="2" />
+            <circle cx="15" cy="12" r="2" />
+            <circle cx="7" cy="18" r="2" />
+          </svg>
+        </button>
+        <div class="viz-dock-panel" id="viz-dock-panel">
+          <h2 class="viz-dock-title">Display</h2>
+
+          <div class="viz-field">
+            <div class="field-head">
+              <label for="viz-sens">Sensitivity</label>
+              <span class="val" id="viz-sens-val">100%</span>
+            </div>
+            <input type="range" id="viz-sens" min="0.2" max="3" step="0.05" value="1" />
+          </div>
+
+          <div class="viz-field">
+            <div class="field-head">
+              <label for="viz-smooth">Smoothing</label>
+              <span class="val" id="viz-smooth-val">80%</span>
+            </div>
+            <input type="range" id="viz-smooth" min="0" max="0.95" step="0.01" value="0.8" />
+          </div>
+
+          <div class="viz-field">
+            <div class="field-head">
+              <label for="viz-glow">Glow</label>
+              <span class="val" id="viz-glow-val">14px</span>
+            </div>
+            <input type="range" id="viz-glow" min="0" max="40" step="1" value="14" />
+          </div>
+
+          <div class="viz-field">
+            <div class="field-head">
+              <label for="viz-lw">Line width</label>
+              <span class="val" id="viz-lw-val">3px</span>
+            </div>
+            <input type="range" id="viz-lw" min="1" max="10" step="0.5" value="3" />
+          </div>
+
+          <div class="viz-field">
+            <div class="field-head">
+              <label for="viz-trails">Trails</label>
+              <span class="val" id="viz-trails-val">0%</span>
+            </div>
+            <input type="range" id="viz-trails" min="0" max="0.95" step="0.01" value="0" />
+          </div>
+
+          <div class="viz-field">
+            <div class="field-head">
+              <label for="viz-motion">Motion</label>
+              <span class="val" id="viz-motion-val">1.0×</span>
+            </div>
+            <input type="range" id="viz-motion" min="0" max="3" step="0.1" value="1" />
+          </div>
+
+          <div class="viz-field">
+            <div class="field-head">
+              <label>Resolution</label>
+            </div>
+            <div class="seg" id="viz-fft" role="group" aria-label="FFT resolution">
+              <button type="button" data-fft="1024">1k</button>
+              <button type="button" data-fft="2048" class="active">2k</button>
+              <button type="button" data-fft="4096">4k</button>
+              <button type="button" data-fft="8192">8k</button>
+            </div>
+          </div>
+
+          <div class="viz-field">
+            <div class="field-head">
+              <label>Color</label>
+            </div>
+            <div class="seg" id="viz-color" role="group" aria-label="Color mode">
+              <button type="button" data-color="auto" class="active">Auto</button>
+              <button type="button" data-color="freq">Freq</button>
+              <button type="button" data-color="accent">Accent</button>
+            </div>
+          </div>
+
+          <label class="check-row">
+            <input type="checkbox" id="viz-grid" checked />
+            <span>Background grid</span>
+          </label>
         </div>
       </div>
 
-      <div class="control-row">
-        <div class="control-block">
-          <label for="waveform">Waveform</label>
-          <select id="waveform">
-            <option value="sine">Sine</option>
-            <option value="square">Square</option>
-            <option value="sawtooth">Sawtooth</option>
-            <option value="triangle">Triangle</option>
-          </select>
+      <div class="piano-bar hidden" id="piano-bar">
+        <div class="piano-side">
+          <div class="seg" id="piano-mode" role="group" aria-label="Key mode">
+            <button type="button" data-pmode="play" class="active">Play</button>
+            <button type="button" data-pmode="steer">Steer</button>
+          </div>
+          <div class="seg" id="piano-wave" role="group" aria-label="Piano voice">
+            <button type="button" data-pwave="pad" class="active">Pad</button>
+            <button type="button" data-pwave="sine">Sin</button>
+            <button type="button" data-pwave="triangle">Tri</button>
+            <button type="button" data-pwave="sawtooth">Saw</button>
+            <button type="button" data-pwave="square">Sqr</button>
+          </div>
+          <div class="oct-ctl">
+            <button type="button" id="oct-down" aria-label="Octave down">−</button>
+            <span id="oct-val">Oct 4</span>
+            <button type="button" id="oct-up" aria-label="Octave up">+</button>
+          </div>
         </div>
-
-        <div class="control-block">
-          <label for="visualization">Visualization</label>
-          <select id="visualization">
-            <option value="waveform">Waveform</option>
-            <option value="spectrum">Spectrum Bars</option>
-            <option value="radial">Radial Energy</option>
-          </select>
-        </div>
-
-        <div class="control-block">
-          <label for="volume">Volume</label>
-          <input type="range" id="volume" min="0" max="1" step="0.01" value="0.3" />
-        </div>
+        <div class="piano" id="piano"></div>
       </div>
 
-      <div class="actions">
-        <button id="playPause" class="primary">Play</button>
-        <button id="stop">Stop</button>
-      </div>
-    </section>
-
-    <section class="visualizer">
-      <canvas id="scope" width="800" height="360" aria-label="waveform visualization"></canvas>
+      <div class="credits">freqGen · Web Audio API</div>
     </section>
   </main>
 
-  <footer>
-    <small>Built with the Web Audio API · freqGen</small>
-  </footer>
-
   <script src="script.js"></script>
 </body>
+
 </html>
