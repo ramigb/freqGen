@@ -2,6 +2,8 @@
 
 A client-side drone synthesizer and tone generator with live visualizers. Stack detuned voices, add slow swells and reverb, then steer the whole instrument from your keyboard.
 
+**Try it live: https://ramigb.github.io/freqGen/**
+
 ![freqGen — Rebalance preset, radial visualizer, piano bar, and display dock](screenshot.png)
 
 ## Features
