@@ -2,6 +2,8 @@
 
 A client-side drone synthesizer and tone generator with live visualizers. Stack detuned voices, add slow swells and reverb, then steer the whole instrument from your keyboard.
 
+![freqGen — Rebalance preset, radial visualizer, piano bar, and display dock](screenshot.png)
+
 ## Features
 
 - **Channels** — multiple oscillators, each with frequency (20 Hz–2 kHz), pan, volume, mute, and per-channel EQ/filters
