@@ -49,3 +49,5 @@ A client-side drone synthesizer and tone generator with live visualizers. Stack 
 Enjoying freqGen? [Star the repo](https://github.com/ramigb/freqGen) or share the live link — the whole instrument is three static files and a browser.
 
 **Links:** [Live demo](https://ramigb.github.io/freqGen/) · [Source code](https://github.com/ramigb/freqGen) · [Issues & ideas](https://github.com/ramigb/freqGen/issues)
+
+*Vision by [Rami GB](https://github.com/ramigb) · execution by [Devin](https://devin.ai) (SWE-2).*
