@@ -1062,6 +1062,10 @@ function applyReverbState(r) {
 
 const USER_PRESETS_KEY = 'freqgen.presets.v1';
 const userPresets = loadUserPresets();
+let activePresetName = null;
+
+const findUserPreset = (name) =>
+  userPresets.findIndex(p => p.name.toLowerCase() === name.trim().toLowerCase());
 
 function loadUserPresets() {
   try {
@@ -1115,7 +1119,10 @@ function renderPresetChips() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = preset.name;
-    btn.addEventListener('click', () => applyPreset(preset));
+    btn.addEventListener('click', () => {
+      activePresetName = null;
+      applyPreset(preset);
+    });
     presetsContainer.appendChild(btn);
   });
 
@@ -1135,13 +1142,17 @@ function renderPresetChips() {
     del.title = `Delete "${preset.name}"`;
     del.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (activePresetName === preset.name) activePresetName = null;
       userPresets.splice(i, 1);
       persistUserPresets();
       renderPresetChips();
     });
     btn.appendChild(del);
 
-    btn.addEventListener('click', () => applyPreset(preset));
+    btn.addEventListener('click', () => {
+      activePresetName = preset.name;
+      applyPreset(preset);
+    });
     presetsContainer.appendChild(btn);
   });
 }
@@ -1777,9 +1788,21 @@ function bindEvents() {
   const savePresetBtn = document.getElementById('preset-save-btn');
   const savePresetForm = document.getElementById('preset-save-form');
   const presetNameInput = document.getElementById('preset-name');
+  const presetSaveOk = document.getElementById('preset-save-ok');
+  const updateSaveLabel = () => {
+    presetSaveOk.textContent =
+      findUserPreset(presetNameInput.value) !== -1 ? 'Update' : 'Save';
+  };
   const commitSavePreset = () => {
     const name = presetNameInput.value.trim() || `Preset ${userPresets.length + 1}`;
-    userPresets.push({ name, ...serializeState() });
+    const existing = findUserPreset(name);
+    if (existing !== -1) {
+      userPresets[existing] = { name: userPresets[existing].name, ...serializeState() };
+      activePresetName = userPresets[existing].name;
+    } else {
+      userPresets.push({ name, ...serializeState() });
+      activePresetName = name;
+    }
     persistUserPresets();
     renderPresetChips();
     presetNameInput.value = '';
@@ -1793,9 +1816,13 @@ function bindEvents() {
   savePresetBtn.addEventListener('click', () => {
     savePresetBtn.classList.add('hidden');
     savePresetForm.classList.remove('hidden');
+    presetNameInput.value = activePresetName || '';
+    updateSaveLabel();
     presetNameInput.focus();
+    presetNameInput.select();
   });
-  document.getElementById('preset-save-ok').addEventListener('click', commitSavePreset);
+  presetSaveOk.addEventListener('click', commitSavePreset);
+  presetNameInput.addEventListener('input', updateSaveLabel);
   presetNameInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') commitSavePreset();
     if (e.key === 'Escape') cancelSavePreset();
